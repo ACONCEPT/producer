@@ -1,17 +1,27 @@
-from pyspark import SparkConf, SparkContext
+import sys
+from pyspark import SparkContext
+from pyspark import SparkConf
+from pyspark.streaming import StreamingContext
+from pyspark.streaming.kafka import KafkaUtils
+from pyspark.sql.context import SQLContext
 
-APP_NAME = "My Spark Application"
+if __name__ == '__main__':
+    if len(sys.argv) != 3:
+        print("Usage: kafka_wordcount.py <zk> <topic>", file=sys.stderr)
+        exit(-1)
 
-def main(sc):
-	rdd = sc.parallelize(range(1000), 10)
-	print rdd.mean()
+    sc = SparkContext(appName="PythonStreamingKafkaWordCount")
+    ssc = StreamingContext(sc, 1)
 
-if __name__ == "__main__":
-    # Configure OPTIONS
-    conf = SparkConf().setAppName(APP_NAME)
-    conf = conf.setMaster("local[*]")
-    #in cluster this will be like
-    #"spark://ec2-0-17-03-078.compute-#1.amazonaws.com:7077"
-    sc   = SparkContext(conf=conf)
-    # Execute Main functionality
-    main(sc)
+    zkQuorum, topic = sys.argv[1:]
+    kvs = KafkaUtils.createStream(ssc, zkQuorum, "spark-streaming-consumer", {topic: 1})
+    lines = kvs.map(lambda x: x[1])
+    lines.pprint()
+
+    counts = lines.flatMap(lambda line: line.split(" ")) \
+                  .map(lambda word: (word, 1)) \
+                  .reduceByKey(lambda a, b: a+b)
+    counts.pprint()
+
+    ssc.start()
+    ssc.awaitTermination()
