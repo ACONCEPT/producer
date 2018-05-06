@@ -49,5 +49,5 @@ if __name__ == '__main__':
         db =  "postgres_rds"
         bootstrap_servers = BOOTSTRAP_SERVERS
     topic = sys.argv[1].strip()
-    main(bootstrap_servers,topic)
+    main(bootstrap_servers,db,topic)
 
