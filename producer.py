@@ -35,7 +35,7 @@ class IngestionProducer(KafkaWriter):
 
         self.producer.send_debug
 
-def main(bootstrap_servers,table):
+def main(bootstrap_servers,db,table):
     print("main table {}".format(table))
     producer = IngestionProducer(bootstrap_servers,"test_database")
     producer.ingest_data(table)
@@ -44,7 +44,9 @@ if __name__ == '__main__':
     if "joe" in os.environ.get("HOME"):
         print("setting bootstrap to localhost in producer")
         bootstrap_servers = TESTING_SERVER
+        db =  "test_database"
     else:
+        db =  "postgres_rds"
         bootstrap_servers = BOOTSTRAP_SERVERS
     topic = sys.argv[1].strip()
     main(bootstrap_servers,topic)
