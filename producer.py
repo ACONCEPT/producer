@@ -25,19 +25,18 @@ class IngestionProducer(KafkaWriter):
         self.get_ingestion_data(table)
         generator,header = self.db.stream_table("sales_orders")
         data = {}
-
         data["meta"] = {"table":table}
         topic = get_topic(self.datasource,table)
         print("streaming data from table {} to topic {}".format(table,topic))
-        for record in generator:
+        for i,record in enumerate(generator):
             data["record"] = {str(h.name):str(v) for h,v in zip(header,record)}
             self.producer.send(topic,json.dumps(data))
 
-        self.producer.send_debug
+        self.produce_debug("completed producing {}, {} records".format(table,i))
 
 def main(bootstrap_servers,db,table):
     print("main table {}".format(table))
-    producer = IngestionProducer(bootstrap_servers,"test_database")
+    producer = IngestionProducer(bootstrap_servers,db)
     producer.ingest_data(table)
 
 if __name__ == '__main__':
