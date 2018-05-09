@@ -10,8 +10,8 @@ class IngestionProducer(KafkaWriter):
         self.db = DBConnection(datasource)
 
     def publish_to_topic(self, datasource, table, data):
-        self.producer.send(topic,json.dumps(data))
-        self.producer.flush()
+        self.jsonproducer.send(topic,json.dumps(data))
+        self.jsonproducer.flush()
 
     def get_ingestion_data(self,table):
         self.data , self.header = self.db.stream_table(table)
@@ -26,7 +26,7 @@ class IngestionProducer(KafkaWriter):
         x = 0
         for i,record in enumerate(generator):
             data["record"] = {str(h.name):str(v) for h,v in zip(header,record)}
-            self.producer.send(topic,json.dumps(data))
+            self.jsonproducer.send(topic,json.dumps(data))
             x = i
 
         self.produce_debug("completed producing {}, {} records".format(table,x))
