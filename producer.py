@@ -24,12 +24,18 @@ class IngestionProducer(KafkaWriter):
         topic = get_topic(self.datasource,table)
         print("streaming data from table {} to topic {}".format(table,topic))
         x = 0
+        stat = {}
+        stat["topic"] = topic
         for i,record in enumerate(generator):
             data["record"] = {str(h.name):str(v) for h,v in zip(header,record)}
             self.jsonproducer.send(topic,json.dumps(data))
             x = i
+            if x % 1000 == 0:
+                stat["count"] = x
+                self.produce_stats(json.dumps(stat))
 
         self.produce_debug("completed producing {}, {} records".format(table,x))
+        self.produce_stats(json.dumps(stat))
 
 def main(bootstrap_servers,db,table):
     print("main table {}".format(table))
