@@ -1,51 +1,66 @@
 from postgreslib.database_connection import DBConnection
 from helpers.kafka import KafkaWriter, get_topic
+from config.config import JSON_FILE
 import json
+import time
+from json.decoder import JSONDecodeError
+import os
 
 class IngestionProducer(KafkaWriter):
-    def __init__(self,bootstrap_servers,datasource,number = False):
+    def __init__(self,bootstrap_servers,datasource,outfile = JSON_FILE):
         super().__init__(bootstrap_servers)
-        print("starting injestion producer for number limit :  {}".format(number))
         self.datasource = datasource
-        self.db = DBConnection(datasource)
-        self.number = number
 
-    def publish_to_topic(self, datasource, table, data):
-        self.jsonproducer.send(topic,json.dumps(data))
-        self.jsonproducer.flush()
+    def get_records(self,table,number):
+        self.db = DBConnection(self.datasource)
+        print("running get records {}".format(number))
+        generator,header = self.db.stream_table(table)
+        def format_record(record):
+            return {str(h.name):str(v) for h,v in zip(header,record)}
+        try:
+            out = []
+            for i , x in enumerate(generator):
+                out.append(format_record(x))
+                if i == number:
+                    reason = "break"
+                    break
+        except Exception as e:
+            reason = e
+        finally:
+            resp = input("stopped on {} write to file? (y/n) : ".format(reason))
+            write = resp == "y"
+            print("\n chosen write {} ".format(write))
+            if write:
+                path = os.environ.get("PROJECT_HOME")+ "/records.json"
+                print("out len {}".format(len(out)))
+                with open(path,"w+") as f:
+                    f.write(json.dumps(out))
+                print("wrote {} records to \n{}".format(len(out),path))
+            else:
+                print("not writing")
 
-    def get_ingestion_data(self,table):
-        self.data , self.header = self.db.stream_table(table)
+    def get_records_csv(self):
+        path = os.environ.get("PROJECT_HOME")+ "/records.json"
+        with open(path,"r") as f:
+            data = json.loads(f.read())
+        return data
 
-    def ingest_data(self,table):
-        self.get_ingestion_data(table)
-        generator,header = self.db.stream_table("sales_orders")
-        data = {}
-        data["meta"] = {"table":table}
+    def ingest_data(self,table,number = False):
+        print("in ingest data method max {}".format(number))
+        records = self.get_records_csv()
+        print(" got {} records to stream".format(len(records)))
         topic = get_topic(self.datasource,table)
         print("streaming data from table {} to topic {}".format(table,topic))
-        x = 0
-        stat = {}
-#        stat["topic"] = topic
-        for i,record in enumerate(generator):
-            data["record"] = {str(h.name):str(v) for h,v in zip(header,record)}
-            self.produce(data,topic)
-#            self.jsonproducer.send(topic,json.dumps(data))
-            x = i
-#            if x % 1000 == 0:
-#                stat["count"] = x
-#                self.produce_stats(json.dumps(stat))
-            if self.number:
-                if x >= self.number:
+        input("press enter to start producing")
+        print("producing...")
+        for i,record in enumerate(records):
+            self.produce(record, topic)
+            if number:
+                if i == number:
                     break
+        self.produce_debug("completed producing {}".format(table))
 
-        self.produce_debug("completed producing {}, {} records".format(table,x))
-#        self.produce_stats(stat)
-
-def main(bootstrap_servers,db,table):
+def cache_records(bootstrap_servers,db,table,number):
     print("main table {}".format(table))
     producer = IngestionProducer(bootstrap_servers,db)
-    producer.ingest_data(table)
-
-if __name__ == '__main__':
-    pass
+    producer.get_records("sales_orders",number)
