@@ -1,13 +1,13 @@
 from postgreslib.database_connection import DBConnection
 from helpers.kafka import KafkaWriter, get_topic
-from config.config import JSON_FILE
+from config.config import JSON_RECORDS
 import json
 import time
 from json.decoder import JSONDecodeError
 import os
 
 class IngestionProducer(KafkaWriter):
-    def __init__(self,bootstrap_servers,datasource,outfile = JSON_FILE):
+    def __init__(self,bootstrap_servers,datasource,outfile = JSON_RECORDS):
         super().__init__(bootstrap_servers)
         self.datasource = datasource
 
@@ -31,7 +31,7 @@ class IngestionProducer(KafkaWriter):
             write = resp == "y"
             print("\n chosen write {} ".format(write))
             if write:
-                path = os.environ.get("PROJECT_HOME")+ "/records.json"
+                path = JSON_RECORDS
                 print("out len {}".format(len(out)))
                 with open(path,"w+") as f:
                     f.write(json.dumps(out))
@@ -39,17 +39,19 @@ class IngestionProducer(KafkaWriter):
             else:
                 print("not writing")
 
-    def get_records_csv(self):
-        path = os.environ.get("PROJECT_HOME")+ "/records.json"
+    def get_records_json(self):
+        path = JSON_RECORDS
         with open(path,"r") as f:
             data = json.loads(f.read())
         return data
 
     def ingest_data(self,table,number = False):
         print("in ingest data method max {}".format(number))
-        records = self.get_records_csv()
+        records = self.get_records_json()
+
         print(" got {} records to stream".format(len(records)))
         topic = get_topic(self.datasource,table)
+
         print("streaming data from table {} to topic {}".format(table,topic))
         input("press enter to start producing")
         print("producing...")
